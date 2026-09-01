@@ -121,5 +121,8 @@ With `serve` running, open **http://127.0.0.1:8000/docs** for the interactive Sw
 
 - Fine-tune classification on real labeled Bayan feedback instead of relying on zero-shot.
 - Export models to ONNX Runtime (INT8) for production inference speed.
+
+---
+**Training-program reference:** [SDAIA Academy — Bayan Applied NLP](https://github.com/SDAIAAcademy)
 - Replace the in-memory FAISS index with a persisted vector store as the feedback corpus grows.
 - Add an abbreviation-aware sentence splitter for Arabic.
