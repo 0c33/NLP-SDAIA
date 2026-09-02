@@ -1,0 +1,7 @@
+course: bayan-applied-nlp
+student_github: 0c33
+repository: https://github.com/0c33/NLP-SDAIA
+default_branch: main
+final_tag: submission-v1.0
+runtime: google-colab
+visibility: public

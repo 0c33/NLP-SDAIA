@@ -1,0 +1,14 @@
+{
+  "student_github": "0c33",
+  "repository_url": "https://github.com/0c33/NLP-SDAIA",
+  "languages": ["ar", "en"],
+  "tasks": ["classification", "sentiment", "ner", "qa", "semantic_search"],
+  "extension": {
+    "name": "batch endpoint",
+    "evidence": "src/bayan/api.py + notebooks/08_optimization_serving.ipynb"
+  },
+  "benchmark_mode": "PROJECT_ARTIFACT",
+  "final_tag": "submission-v1.0",
+  "privacy_check": true,
+  "tests_passed": true
+}
