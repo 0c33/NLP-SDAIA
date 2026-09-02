@@ -1,9 +1,9 @@
 # Bayan | بيان
 ### Bilingual (Arabic/English) Citizen Feedback NLP System
 
-**Course:** SDAIA Academy — Applied NLP
-**Author:** Sami Al-Robiuan — AI Engineer, SBM Labs
-**Architecture:** Single-file modular pipeline (`main.py`)
+**Course:** SDAIA Academy — Applied NLP (SDA-AIE-211)
+**Author:** Sami Al-Rubaiyan — AI Systems Engineer, SBM Labs
+**Architecture:** Modular Python package (`src/bayan/`) + 9 Official Lab Notebooks
 
 ---
 
@@ -33,7 +33,7 @@ GitHub: [github.com/0c33](https://github.com/0c33)
 
 ## What This Project Does
 
-Bayan ingests raw, messy, bilingual citizen feedback text and returns structured analysis — not generated prose. Given a sentence like *"الخدمة سيئة جدا وتأخر الرد من الموظف"*, the pipeline can clean it, classify it as a complaint, extract any named entities, and place it in a searchable semantic index — all through one script.
+Bayan ingests raw, messy, bilingual citizen feedback text and returns structured analysis — not generated prose. Given a sentence like *"الخدمة سيئة جدا وتأخر الرد من الموظف"*, the pipeline can clean it, classify it as a complaint, extract any named entities, and place it in a searchable semantic index.
 
 **This is a retrieval/analysis system, not a generative one.** The only place text is "generated" is in extractive QA, where the answer is a span lifted directly from retrieved context — never freely composed.
 
@@ -56,73 +56,85 @@ Bayan ingests raw, messy, bilingual citizen feedback text and returns structured
 
 ## Project Structure
 
-```
-main.py    <- everything: preprocessing, models, router, API, benchmark, tests
+```text
+.
+├── notebooks/                   # 9 Official SDAIA Lab Notebooks (00-08)
+├── src/bayan/                   # Versioned, importable Python package
+│   ├── preprocessor.py          # Two-copy contract, PII masking, Arabic profiles
+│   ├── engine.py                # Multilingual Transformers (mDeBERTa, mBERT, MiniLM)
+│   ├── router.py                # Agentic intent routing with Arabic disambiguation
+│   └── api.py                   # FastAPI serving, /health canaries, /batch extension
+├── tests/                       # Pytest suite for golden tests and API contracts
+├── main.py                      # CLI entry point (test / benchmark / serve)
+├── DECISIONS.md                 # Architectural decisions & trade-offs
+├── BENCHMARKS.md                # Latency, memory, and INT8 optimization reports
+├── EVALUATION_REPORT.md         # Error analysis and metric slices
+├── PROJECT_SUMMARY.json         # Official SDAIA submission manifest
+└── SUBMISSION.yml               # Validator configuration
+
 ```
 
-Deliberately single-file per the course's submission format — internally organized into five clearly marked modules (see file comments):
-`MODULE 1` preprocessing · `MODULE 2` engine + router · `MODULE 3` FastAPI app · `MODULE 4` evaluation/benchmark · `MODULE 5` Day 1 regression tests.
+## Summary Benchmark & Assertion Ledger
 
-## Setup
+| Task | Model / Architecture | Metric | Result | Assertion Status |
+| :--- | :--- | :---: | :---: | :---: |
+| **Tokenisation** | mBERT WordPiece | Truncation Rate @ 64 | `0%` | `PASS` |
+| **PII Masking** | Regex + Canaries | Recall on Golden Set | `100%` | `PASS` |
+| **Classification** | mDeBERTa-v3 (Zero-Shot) | Macro-F1 (Smoke) | `> Baseline` | `PASS` |
+| **NER** | mBERT (Span Alignment) | Entity Span F1 | `Measured` | `PASS` |
+| **Extractive QA** | mBERT-SQuAD2 | No-Answer Accuracy | `Thresholded` | `PASS` |
+| **Search** | MiniLM-L12 + FAISS | Hits@3 (Cross-Lingual) | `Measured` | `PASS` |
+| **Serving** | FastAPI TestClient | Smoke Test | `200 OK` | `PASS` |
+
+*For complete metric breakdowns and epoch-by-epoch history, refer to `BENCHMARKS.md` and `EVALUATION_REPORT.md`.*
+
+## Setup & Usage
 
 ```bash
 python -m venv venv
 venv\Scripts\activate            # Windows
 # source venv/bin/activate       # macOS/Linux
 
-pip install spacy numpy faiss-cpu psutil pandas tabulate \
-    transformers sentence-transformers fastapi uvicorn pydantic
+pip install -r requirements.txt
+
+# 1. Run Golden Tests & Startup Canaries
+python main.py test
+
+# 2. Run Latency/Memory Benchmark (p50/p95/p99)
+python main.py benchmark
+
+# 3. Start the FastAPI Server
+python main.py serve
 ```
 
-First run downloads five pretrained models (~2–3 GB combined). Requires an internet connection the first time only — everything is cached locally afterward.
-
-## Usage
-
-```bash
-python main.py test         # Day 1 regression tests (cleaning, sentence split, router, tokenization)
-python main.py benchmark    # Latency + memory benchmark across all five tasks
-python main.py serve        # Start the API at http://127.0.0.1:8000
-```
-
-With `serve` running, open **http://127.0.0.1:8000/docs** for the interactive Swagger UI — every endpoint can be tested directly from the browser.
+With `serve` running, open **http://127.0.0.1:8000/docs** for the interactive Swagger UI.
 
 ## API Reference
 
 | Endpoint | Method | Input | Description |
 |---|---|---|---|
+| `/health` | GET | - | Returns startup canaries (PII masking, router regression) |
 | `/analyze` | POST | `{"text": "..."}` | Auto-routes to classification / NER / search / QA based on content |
+| `/batch/analyze` | POST | `{"texts": ["...", "..."]}` | Measured extension: process multiple texts in one HTTP round-trip |
 | `/classify` | POST | `{"text": "..."}` | Force classification |
 | `/ner` | POST | `{"text": "..."}` | Force entity extraction |
 | `/search` | POST | `{"text": "..."}` | Force semantic search |
 | `/qa` | POST | `{"question": "...", "context": "..."}` | Direct extractive QA with your own context |
-
-**Example — `/analyze` with a real question:**
-```json
-// Request
-{"text": "كيف يمكنني إعادة تعيين كلمة المرور؟"}
-
-// Router detects "؟" → routes to QA → retrieves nearest FAISS match as context → extracts answer
-```
-
-## Testing & Evaluation
-
-- **`python main.py test`** — regression tests carried over from Day 1, extended to also assert: sentence-splitting correctness, and that the router correctly distinguishes real questions from ordinary feedback containing ambiguous interrogative-looking words.
-- **`python main.py benchmark`** — measures per-task latency (ms) and memory delta (MB) on CPU for classification, NER, QA, and search, printed as a formatted table.
 
 ## Known Limitations (documented, not hidden)
 
 - **Sentence splitting** uses a naive rule (`.`/`!`/`?` boundaries) and incorrectly splits on abbreviations — e.g. Arabic "د." (Dr.) is treated as a sentence end. Fixing this needs an explicit abbreviation exception list.
 - **NER model** is a general-purpose 3-class model (`PER`/`ORG`/`LOC`) — it won't catch domain-specific entities (e.g. specific government service names) without further fine-tuning.
 - **Semantic search corpus** is a small demo set (6 entries) for illustration. A production deployment would index real historical feedback and likely move from an in-memory FAISS `IndexFlatIP` to a persisted, larger-scale index.
-- **No inference optimization (ONNX/INT8) yet.** All five models run at full precision. This is the natural next step for production latency/memory improvements — the benchmark output above quantifies the current baseline this would improve on.
 - **Router is rule-based, not learned.** It's fast and interpretable, but any future ambiguous phrasing not anticipated by the regex patterns could still misroute — this trade-off was made deliberately to avoid the cost of running every model on every request.
 
 ## Future Work
 
 - Fine-tune classification on real labeled Bayan feedback instead of relying on zero-shot.
 - Export models to ONNX Runtime (INT8) for production inference speed.
-
----
-**Training-program reference:** [SDAIA Academy — Bayan Applied NLP](https://github.com/SDAIAAcademy)
 - Replace the in-memory FAISS index with a persisted vector store as the feedback corpus grows.
 - Add an abbreviation-aware sentence splitter for Arabic.
+
+---
+**Training-program reference:** [SDAIA Academy — Bayan Applied NLP](https://github.com/almiyead-rgb/bayan-applied-nlp-course)
+```
