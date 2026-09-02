@@ -1,12 +1,10 @@
-"""
-Bayan Preprocessing Engine
-Based on Day 1 logic, cleaned and optimized for production.
-"""
 import html
 import re
 import unicodedata
 from dataclasses import dataclass
 import spacy
+
+PREPROCESSOR_VERSION = "1.0.0"
 
 @dataclass
 class TextRecord:
@@ -14,7 +12,6 @@ class TextRecord:
     model_text: str
 
 class ArabicTextPreprocessor:
-    # FIXED: Removed accidental spaces inside regex strings from original Day 1 file
     ARABIC_DIACRITICS = re.compile(r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]")
     TATWEEL = "\u0640"
     WHITESPACE = re.compile(r"\s+")
@@ -28,28 +25,23 @@ class ArabicTextPreprocessor:
     def __init__(self, remove_diacritics: bool = True, normalize_alef: bool = True):
         self.remove_diacritics = remove_diacritics
         self.normalize_alef = normalize_alef
-        # Lightweight spaCy sentencizer (multilingual)
         self.nlp = spacy.blank("xx")
         self.nlp.add_pipe("sentencizer")
 
     def _mask_pii(self, text: str) -> str:
-        """Redacts Saudi mobile numbers and emails."""
         text = self.EMAIL.sub("[REDACTED_EMAIL]", text)
         text = self.SAUDI_MOBILE.sub("[REDACTED_PHONE]", text)
         return text
 
     def _join_single_letters(self, match: re.Match) -> str:
-        """Joins spaced single letters (e.g., 'S A M I' -> 'SAMI')."""
         return re.sub(r"\s+", "", match.group(0))
 
     def _strip_symbol_only_tokens(self, text: str) -> str:
-        """Removes tokens that contain no alphanumeric characters."""
         tokens = text.split()
         kept = [t for t in tokens if re.search(r"[^\W\d_]|\d", t)]
         return " ".join(kept)
 
     def collapse_repeated_phrases(self, text: str, min_repeats: int = 2) -> str:
-        """Collapses looped/hallucinated phrases."""
         words = text.split()
         n = len(words)
         out = []
@@ -67,7 +59,6 @@ class ArabicTextPreprocessor:
                 total = length * repeats
                 if repeats >= min_repeats and total > best_total:
                     best_length, best_repeats, best_total = length, repeats, total
-
             if best_length and best_repeats >= min_repeats:
                 out.extend(words[i:i + best_length])
                 i += best_total
@@ -79,17 +70,13 @@ class ArabicTextPreprocessor:
     def prepare_text(self, text: str) -> TextRecord:
         if not isinstance(text, str):
             raise TypeError("text must be a string")
-        
         raw = text
         model = unicodedata.normalize("NFC", html.unescape(text))
-        
-        # Core cleaning
         model = self.HTML_TAG.sub(" ", model).replace(self.TATWEEL, "")
         if self.remove_diacritics:
             model = self.ARABIC_DIACRITICS.sub("", model)
         if self.normalize_alef:
             model = re.sub(r"[إأآٱ]", "ا", model)
-            
         model = self._mask_pii(model)
         model = self.COMMA.sub(" ", model)
         model = self.LETTER_HYPHEN.sub("", model)
@@ -97,10 +84,21 @@ class ArabicTextPreprocessor:
         model = self._strip_symbol_only_tokens(model)
         model = self.WHITESPACE.sub(" ", model).strip()
         model = self.collapse_repeated_phrases(model)
-        
         return TextRecord(raw_text=raw, model_text=model)
 
     def split_sentences(self, model_text: str) -> list:
-        """Splits text into sentences using spaCy."""
         doc = self.nlp(model_text)
         return [s.text.strip() for s in doc.sents if s.text.strip()]
+
+def run_startup_canaries() -> dict:
+    from .router import SmartRouter
+    p = ArabicTextPreprocessor()
+    canaries = {
+        "version": PREPROCESSOR_VERSION,
+        "pii_email_masked": "test@example.com" not in p.prepare_text("email me at test@example.com").model_text,
+        "pii_phone_masked": "0551234567" not in p.prepare_text("call 0551234567").model_text,
+        "two_copy_contract": p.prepare_text("test").raw_text == "test",
+        "router_disambiguation": SmartRouter.route("الرد من الموظف") == "classification"
+    }
+    canaries["all_pass"] = all(v for k, v in canaries.items() if isinstance(v, bool))
+    return canaries
