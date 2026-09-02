@@ -2,7 +2,7 @@
 ### Bilingual (Arabic/English) Citizen Feedback NLP System
 
 **Course:** SDAIA Academy — Applied NLP (SDA-AIE-211)
-**Author:** Sami Al-Rubaiyan — AI Systems Engineer, SBM Labs
+**Author:** Sami Al-Robiuan — AI Systems Engineer, SBM Labs
 **Architecture:** Modular Python package (`src/bayan/`) + 9 Official Lab Notebooks
 
 ---
